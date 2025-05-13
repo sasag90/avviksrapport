@@ -21,10 +21,6 @@
       border-radius: 16px;
       box-shadow: 0 8px 20px rgba(0,0,0,0.3);
     }
-    h1 {
-      text-align: center;
-      margin-bottom: 25px;
-    }
     label {
       display: block;
       margin-top: 20px;
@@ -62,20 +58,19 @@
       font-weight: bold;
       cursor: pointer;
     }
-    .preview img {
-      width: 100%;
-      max-width: 300px;
+    .conditional {
+      display: none;
       margin-top: 10px;
-      border-radius: 10px;
-      border: 2px solid white;
     }
   </style>
 </head>
 <body>
-
 <div class="container">
   <h1>Avviksrapportering</h1>
   <form id="avvikForm">
+    <label for="ordrenr">Ordrenr.:</label>
+    <input type="text" id="ordrenr" name="ordrenr" required>
+
     <label for="sjofor">Sjåfør:</label>
     <input type="text" id="sjofor" name="sjofor" required>
 
@@ -94,7 +89,24 @@
       <label><input type="checkbox" name="avvik" value="Batteri">Batteri</label>
       <label><input type="checkbox" name="avvik" value="Stein og betong">Stein og betong</label>
       <label><input type="checkbox" name="avvik" value="Pyroteknisk">Pyroteknisk</label>
-      <label><input type="checkbox" name="avvik" value="Annet">Annet</label>
+      <label><input type="checkbox" name="avvik" value="Gips">Gips</label>
+      <label><input type="checkbox" name="avvik" value="Sorte avfallsekker">Sorte Avfallssekker</label>
+      <label><input type="checkbox" name="avvik" value="Isolasjon">Isolasjon</label>
+      <label><input type="checkbox" id="timearbeid" name="avvik" value="Timearbeid">Timearbeid</label>
+      <label><input type="checkbox" name="avvik" value="Smittefarlig">Smittefarlig</label>
+      <label><input type="checkbox" name="avvik" value="Radioaktivt">Radioaktivt</label>
+      <label><input type="checkbox" name="avvik" value="Farlig avfall">Farlig avfall</label>
+      <label><input type="checkbox" id="annetAvvik" name="avvik" value="Annet">Annet</label>
+    </div>
+
+    <div class="conditional" id="annetTekstBoks">
+      <label for="annetTekst">Beskriv annet avvik:</label>
+      <input type="text" id="annetTekst" />
+    </div>
+
+    <div class="conditional" id="timerInput">
+      <label for="timer">Antall timer:</label>
+      <input type="text" id="timer" />
     </div>
 
     <label for="bilde1">Bilde 1 (nærbilde):</label>
@@ -105,66 +117,61 @@
 
     <button type="submit">Send rapport</button>
   </form>
-
-  <div id="kvittering" style="display: none; margin-top: 30px; background: rgba(255,255,255,0.1); padding: 20px; border-radius: 12px;">
-    <h2>✅ Rapport sendt</h2>
-    <p><strong>Sjåfør:</strong> <span id="kvittSjofor"></span></p>
-    <p><strong>Kunde:</strong> <span id="kvittKunde"></span></p>
-    <p><strong>Dato:</strong> <span id="kvittDato"></span></p>
-    <p><strong>Avvik:</strong> <span id="kvittAvvik"></span></p>
-    <div id="kvittBilder" style="margin-top: 10px;"></div>
-  </div>
 </div>
 
 <script>
-  emailjs.init("W9z9B6eJBVVeHAjY9"); // Din EmailJS public key
+  emailjs.init("W9z9B6eJBVVeHAjY9");
   document.getElementById("dato").value = new Date().toLocaleString("no-NO");
+
+  document.getElementById("annetAvvik").addEventListener("change", function () {
+    document.getElementById("annetTekstBoks").style.display = this.checked ? "block" : "none";
+  });
+
+  document.getElementById("timearbeid").addEventListener("change", function () {
+    document.getElementById("timerInput").style.display = this.checked ? "block" : "none";
+  });
 
   document.getElementById("avvikForm").addEventListener("submit", async function(e) {
     e.preventDefault();
-
     const sjofor = document.getElementById("sjofor").value;
     const kunde = document.getElementById("kunde").value;
+    const ordrenr = document.getElementById("ordrenr").value;
     const dato = new Date().toLocaleString("no-NO");
 
     const avvikCheckboxes = document.querySelectorAll("input[name='avvik']:checked");
-    const avvik = Array.from(avvikCheckboxes).map(cb => cb.value).join(", ") || "Ingen avvik";
+    let avvik = Array.from(avvikCheckboxes).map(cb => cb.value);
+
+    if (document.getElementById("annetAvvik").checked) {
+      const ekstra = document.getElementById("annetTekst").value;
+      if (ekstra) avvik.push("Annet: " + ekstra);
+    }
+
+    if (document.getElementById("timearbeid").checked) {
+      const timer = document.getElementById("timer").value;
+      if (timer) avvik.push("Timearbeid: " + timer + " timer");
+    }
 
     const bilde1File = document.getElementById("bilde1").files[0];
     const bilde2File = document.getElementById("bilde2").files[0];
 
     try {
-      const bilde1Url = bilde1File ? await uploadToCloudinary(bilde1File) : "";
-      const bilde2Url = bilde2File ? await uploadToCloudinary(bilde2File) : "";
+      const bilde1 = bilde1File ? await uploadToCloudinary(bilde1File) : "";
+      const bilde2 = bilde2File ? await uploadToCloudinary(bilde2File) : "";
 
-      const data = { sjofor, kunde, dato, avvik, bilde1: bilde1Url, bilde2: bilde2Url };
+      const data = { sjofor, kunde, dato, ordrenr, avvik: avvik.join(", "), bilde1, bilde2 };
 
       await emailjs.send("service_9v0o8rb", "template_d82p5bl", data);
-
-      document.getElementById("kvittSjofor").textContent = sjofor;
-      document.getElementById("kvittKunde").textContent = kunde;
-      document.getElementById("kvittDato").textContent = dato;
-      document.getElementById("kvittAvvik").textContent = avvik;
-
-      let bildeHtml = "";
-      if (bilde1Url) bildeHtml += `<p><strong>Bilde 1:</strong><br><img src="${bilde1Url}" style="max-width:200px; border-radius:8px; margin-bottom:10px;"></p>`;
-      if (bilde2Url) bildeHtml += `<p><strong>Bilde 2:</strong><br><img src="${bilde2Url}" style="max-width:200px; border-radius:8px;"></p>`;
-      document.getElementById("kvittBilder").innerHTML = bildeHtml;
-
-      document.getElementById("kvittering").style.display = "block";
+      alert("Rapport sendt!");
       document.getElementById("avvikForm").reset();
-      document.getElementById("kvittering").scrollIntoView({ behavior: "smooth" });
-
+      document.getElementById("annetTekstBoks").style.display = "none";
+      document.getElementById("timerInput").style.display = "none";
     } catch (error) {
       alert("Feil ved sending: " + error.message);
     }
   });
 
   async function uploadToCloudinary(file) {
-    if (file.size > 15 * 1024 * 1024) {
-      throw new Error("Filen er for stor. Maks 15MB.");
-    }
-
+    if (file.size > 15 * 1024 * 1024) throw new Error("Filen er for stor. Maks 15MB.");
     const formData = new FormData();
     formData.append("file", file);
     formData.append("upload_preset", "avvik1");
@@ -173,15 +180,10 @@
       method: "POST",
       body: formData
     });
-
-    if (!response.ok) {
-      throw new Error("Cloudinary-opplasting feilet");
-    }
-
+    if (!response.ok) throw new Error("Cloudinary-opplasting feilet");
     const data = await response.json();
     return data.secure_url;
   }
 </script>
-
 </body>
 </html>
